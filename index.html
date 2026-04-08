@@ -90,6 +90,9 @@
       font-weight: 800;
       cursor: pointer;
       transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
     }
     .code-btn {
       min-height: 58px;
@@ -371,8 +374,8 @@
       <div class="variant-grid" id="bassGrid"></div>
       <div class="toolbar" style="margin-top: 14px;">
         <div class="toolbar-left">
-          <button class="mini-btn" id="cancelBassBtn">취소</button>
           <button class="mini-btn" id="addBassBtn">추가</button>
+          <button class="mini-btn" id="cancelBassBtn">취소</button>
         </div>
         <div class="footer-note">베이스 음을 고르면 미리보기가 갱신됩니다.</div>
       </div>
@@ -417,9 +420,10 @@
     let overlayRoot = null;
     let overlaySelectedSuffix = '';
     let bassSelectedNote = null;
+    let activePointerId = null;
+    let activeRoot = null;
     let longPressTimer = null;
     let longPressTriggered = false;
-    let suppressNextClick = false;
 
     function splitSlashChord(chord) {
       const [mainPart, bassPart] = chord.split('/');
@@ -465,6 +469,7 @@
         const btn = document.createElement('button');
         btn.className = 'code-btn' + (isActive ? ' active' : '');
         btn.textContent = root;
+        btn.type = 'button';
 
         const toggleRootChord = () => {
           if (selectedChords.has(root)) {
@@ -475,68 +480,53 @@
           renderAll();
         };
 
-        const startPress = () => {
-          longPressTriggered = false;
-          if (longPressTimer) {
-            clearTimeout(longPressTimer);
-          }
-          longPressTimer = setTimeout(() => {
-            longPressTriggered = true;
-            suppressNextClick = true;
-            openVariantOverlay(root);
-          }, 450);
-        };
-
-        const cancelPress = () => {
+        const clearPressState = () => {
           if (longPressTimer) {
             clearTimeout(longPressTimer);
             longPressTimer = null;
           }
+          activePointerId = null;
+          activeRoot = null;
         };
 
-        btn.addEventListener('mousedown', () => {
-          startPress();
-        });
-        btn.addEventListener('mouseup', () => {
-          cancelPress();
-        });
-        btn.addEventListener('mouseleave', () => {
-          cancelPress();
+        btn.addEventListener('pointerdown', (e) => {
+          if (e.button !== undefined && e.button !== 0) return;
+          longPressTriggered = false;
+          activePointerId = e.pointerId;
+          activeRoot = root;
+          if (longPressTimer) clearTimeout(longPressTimer);
+          longPressTimer = setTimeout(() => {
+            if (activePointerId !== e.pointerId || activeRoot !== root) return;
+            longPressTriggered = true;
+            openVariantOverlay(root);
+          }, 450);
         });
 
-        btn.addEventListener('touchstart', () => {
-          startPress();
-        }, { passive: true });
-
-        btn.addEventListener('touchend', (e) => {
-          e.preventDefault();
+        btn.addEventListener('pointerup', (e) => {
+          if (activePointerId !== e.pointerId || activeRoot !== root) return;
           const wasLongPress = longPressTriggered;
-          cancelPress();
+          clearPressState();
           if (wasLongPress) {
             longPressTriggered = false;
-            suppressNextClick = true;
             return;
           }
-          suppressNextClick = true;
           toggleRootChord();
-        }, { passive: false });
+        });
 
-        btn.addEventListener('touchcancel', () => {
-          cancelPress();
+        btn.addEventListener('pointercancel', () => {
+          clearPressState();
           longPressTriggered = false;
         });
 
-        btn.onclick = () => {
-          if (suppressNextClick) {
-            suppressNextClick = false;
-            return;
-          }
-          if (longPressTriggered) {
-            longPressTriggered = false;
-            return;
-          }
-          toggleRootChord();
-        };
+        btn.addEventListener('pointerleave', (e) => {
+          if (activePointerId !== e.pointerId || activeRoot !== root) return;
+          clearPressState();
+          longPressTriggered = false;
+        });
+
+        btn.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+        });
 
         codeGrid.appendChild(btn);
       });
