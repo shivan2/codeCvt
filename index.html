@@ -419,6 +419,7 @@
     let bassSelectedNote = null;
     let longPressTimer = null;
     let longPressTriggered = false;
+    let suppressNextClick = false;
 
     function splitSlashChord(chord) {
       const [mainPart, bassPart] = chord.split('/');
@@ -465,40 +466,76 @@
         btn.className = 'code-btn' + (isActive ? ' active' : '');
         btn.textContent = root;
 
-        const startPress = (e) => {
-          e.preventDefault();
-          longPressTriggered = false;
-          longPressTimer = setTimeout(() => {
-            longPressTriggered = true;
-            openVariantOverlay(root);
-          }, 450);
-        };
-
-        const endPress = () => {
-          if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-          }
-        };
-
-        btn.addEventListener('mousedown', startPress);
-        btn.addEventListener('touchstart', startPress, { passive: false });
-        btn.addEventListener('mouseup', endPress);
-        btn.addEventListener('mouseleave', endPress);
-        btn.addEventListener('touchend', endPress);
-        btn.addEventListener('touchcancel', endPress);
-
-        btn.onclick = () => {
-          if (longPressTriggered) {
-            longPressTriggered = false;
-            return;
-          }
+        const toggleRootChord = () => {
           if (selectedChords.has(root)) {
             selectedChords.delete(root);
           } else {
             selectedChords.add(root);
           }
           renderAll();
+        };
+
+        const startPress = () => {
+          longPressTriggered = false;
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+          }
+          longPressTimer = setTimeout(() => {
+            longPressTriggered = true;
+            suppressNextClick = true;
+            openVariantOverlay(root);
+          }, 450);
+        };
+
+        const cancelPress = () => {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+        };
+
+        btn.addEventListener('mousedown', () => {
+          startPress();
+        });
+        btn.addEventListener('mouseup', () => {
+          cancelPress();
+        });
+        btn.addEventListener('mouseleave', () => {
+          cancelPress();
+        });
+
+        btn.addEventListener('touchstart', () => {
+          startPress();
+        }, { passive: true });
+
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          const wasLongPress = longPressTriggered;
+          cancelPress();
+          if (wasLongPress) {
+            longPressTriggered = false;
+            suppressNextClick = true;
+            return;
+          }
+          suppressNextClick = true;
+          toggleRootChord();
+        }, { passive: false });
+
+        btn.addEventListener('touchcancel', () => {
+          cancelPress();
+          longPressTriggered = false;
+        });
+
+        btn.onclick = () => {
+          if (suppressNextClick) {
+            suppressNextClick = false;
+            return;
+          }
+          if (longPressTriggered) {
+            longPressTriggered = false;
+            return;
+          }
+          toggleRootChord();
         };
 
         codeGrid.appendChild(btn);
