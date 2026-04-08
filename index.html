@@ -96,6 +96,10 @@
       padding: 12px 8px;
       font-size: 18px;
       box-shadow: inset 0 0 0 1px rgba(31,41,55,0.04);
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
     .code-btn:hover, .capo-btn:hover, .mini-btn:hover {
       transform: translateY(-1px);
@@ -455,8 +459,8 @@
     let overlayRoot = null;
     let overlaySelectedSuffix = '';
     let bassSelectedNote = null;
-    let longPressTimer = null;
-    let longPressTriggered = false;
+    let activePress = null;
+    const LONG_PRESS_MS = 450;
 
     function parseChord(chord) {
       const sortedNotes = [...NOTES].sort((a, b) => b.length - a.length);
@@ -490,49 +494,84 @@
       return transposeDown(root, capoFret) + suffix;
     }
 
+    function toggleMajorChord(root) {
+      if (selectedChords.has(root)) {
+        selectedChords.delete(root);
+      } else {
+        selectedChords.add(root);
+      }
+      renderAll();
+    }
+
+    function cancelActivePress() {
+      if (!activePress) return;
+      clearTimeout(activePress.timerId);
+      activePress = null;
+    }
+
     function renderCodeButtons() {
       codeGrid.innerHTML = '';
       SIMPLE_CHORDS.forEach(root => {
         const isActive = Array.from(selectedChords).some(ch => parseChord(ch).root === root && parseChord(ch).suffix === '');
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = 'code-btn' + (isActive ? ' active' : '');
         btn.textContent = root;
 
-        const startPress = (e) => {
+        btn.addEventListener('contextmenu', (e) => {
           e.preventDefault();
-          longPressTriggered = false;
-          longPressTimer = setTimeout(() => {
-            longPressTriggered = true;
-            openVariantOverlay(root);
-          }, 450);
-        };
+        });
 
-        const endPress = () => {
-          if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
+        btn.addEventListener('pointerdown', (e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          cancelActivePress();
+          let pointerCaptured = false;
+          if (typeof btn.setPointerCapture === 'function' && e.pointerId !== undefined) {
+            try {
+              btn.setPointerCapture(e.pointerId);
+              pointerCaptured = true;
+            } catch (_) {}
           }
-        };
+          activePress = {
+            root,
+            pointerId: e.pointerId,
+            pointerType: e.pointerType || 'mouse',
+            longPressTriggered: false,
+            pointerCaptured,
+            timerId: setTimeout(() => {
+              if (!activePress || activePress.root !== root || activePress.pointerId !== e.pointerId) return;
+              activePress.longPressTriggered = true;
+              openVariantOverlay(root);
+            }, LONG_PRESS_MS)
+          };
+        });
 
-        btn.addEventListener('mousedown', startPress);
-        btn.addEventListener('touchstart', startPress, { passive: false });
-        btn.addEventListener('mouseup', endPress);
-        btn.addEventListener('mouseleave', endPress);
-        btn.addEventListener('touchend', endPress);
-        btn.addEventListener('touchcancel', endPress);
+        btn.addEventListener('pointerup', (e) => {
+          if (!activePress || activePress.root !== root || activePress.pointerId !== e.pointerId) return;
+          const wasLongPress = activePress.longPressTriggered;
+          const captured = activePress.pointerCaptured;
+          cancelActivePress();
+          if (captured && typeof btn.releasePointerCapture === 'function' && e.pointerId !== undefined) {
+            try {
+              btn.releasePointerCapture(e.pointerId);
+            } catch (_) {}
+          }
+          if (!wasLongPress) {
+            toggleMajorChord(root);
+          }
+        });
 
-        btn.onclick = () => {
-          if (longPressTriggered) {
-            longPressTriggered = false;
-            return;
+        btn.addEventListener('pointercancel', (e) => {
+          if (!activePress || activePress.root !== root || activePress.pointerId !== e.pointerId) return;
+          cancelActivePress();
+        });
+
+        btn.addEventListener('pointerleave', (e) => {
+          if (!activePress || activePress.root !== root || activePress.pointerId !== e.pointerId) return;
+          if (activePress.pointerType === 'mouse') {
+            cancelActivePress();
           }
-          if (selectedChords.has(root)) {
-            selectedChords.delete(root);
-          } else {
-            selectedChords.add(root);
-          }
-          renderAll();
-        };
+        });
 
         codeGrid.appendChild(btn);
       });
