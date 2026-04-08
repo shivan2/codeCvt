@@ -90,9 +90,6 @@
       font-weight: 800;
       cursor: pointer;
       transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
-      touch-action: manipulation;
-      -webkit-user-select: none;
-      user-select: none;
     }
     .code-btn {
       min-height: 58px;
@@ -170,7 +167,7 @@
       background: var(--chip);
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 10px 12px;
+      padding: 10px 14px;
       font-weight: 900;
       font-size: 30px;
       line-height: 1;
@@ -249,6 +246,34 @@
       color: white;
       box-shadow: 0 8px 20px rgba(31,41,55,0.18);
     }
+
+    .bass-action-row {
+      display: grid;
+      grid-template-columns: 120px 1fr 120px;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .bass-action-btn {
+      min-height: 50px;
+      height: 50px;
+      padding: 0 18px;
+      font-size: 16px;
+      font-weight: 800;
+      width: 100%;
+      border-radius: 14px;
+      justify-self: stretch;
+    }
+    .bass-action-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .sheet-preview {
       min-height: 54px;
       border-radius: 16px;
@@ -296,6 +321,18 @@
       }
       .chip {
         font-size: 26px;
+      }
+      .bass-action-row {
+        grid-template-columns: 100px 1fr 100px;
+        gap: 10px;
+      }
+      .bass-action-btn {
+        min-height: 50px;
+        height: 50px;
+        font-size: 15px;
+      }
+      .bass-action-note {
+        font-size: 12px;
       }
     }
   </style>
@@ -372,12 +409,10 @@
       </div>
       <div class="sheet-preview" id="bassPreview">C/E</div>
       <div class="variant-grid" id="bassGrid"></div>
-      <div class="toolbar" style="margin-top: 14px;">
-        <div class="toolbar-left">
-          <button class="mini-btn" id="addBassBtn">추가</button>
-          <button class="mini-btn" id="cancelBassBtn">취소</button>
-        </div>
-        <div class="footer-note">베이스 음을 고르면 미리보기가 갱신됩니다.</div>
+      <div class="bass-action-row">
+        <button class="mini-btn bass-action-btn" id="cancelBassBtn">취소</button>
+        <div class="bass-action-note">베이스 음을 고르면 미리보기가 갱신됩니다.</div>
+        <button class="mini-btn bass-action-btn" id="addBassBtn">추가</button>
       </div>
     </div>
   </div>
@@ -420,33 +455,20 @@
     let overlayRoot = null;
     let overlaySelectedSuffix = '';
     let bassSelectedNote = null;
-    let activePointerId = null;
-    let activeRoot = null;
     let longPressTimer = null;
     let longPressTriggered = false;
 
-    function splitSlashChord(chord) {
-      const [mainPart, bassPart] = chord.split('/');
-      return {
-        mainPart: mainPart || chord,
-        bassPart: bassPart || null
-      };
-    }
-
     function parseChord(chord) {
       const sortedNotes = [...NOTES].sort((a, b) => b.length - a.length);
-      const { mainPart, bassPart } = splitSlashChord(chord);
-
       for (const note of sortedNotes) {
-        if (mainPart.startsWith(note)) {
+        if (chord.startsWith(note)) {
           return {
             root: note,
-            suffix: mainPart.slice(note.length),
-            bass: bassPart
+            suffix: chord.slice(note.length)
           };
         }
       }
-      return { root: mainPart, suffix: '', bass: bassPart };
+      return { root: chord, suffix: '' };
     }
 
     function transposeDown(note, semitones) {
@@ -456,10 +478,16 @@
     }
 
     function convertChord(chord, capoFret) {
-      const { root, suffix, bass } = parseChord(chord);
-      const convertedRoot = transposeDown(root, capoFret);
-      const convertedBass = bass ? transposeDown(bass, capoFret) : null;
-      return convertedBass ? `${convertedRoot}${suffix}/${convertedBass}` : `${convertedRoot}${suffix}`;
+      if (chord.includes('/')) {
+        const [mainPart, bassPart] = chord.split('/');
+        const { root, suffix } = parseChord(mainPart);
+        const mainConverted = transposeDown(root, capoFret) + suffix;
+        const bassConverted = transposeDown(bassPart, capoFret);
+        return `${mainConverted}/${bassConverted}`;
+      }
+
+      const { root, suffix } = parseChord(chord);
+      return transposeDown(root, capoFret) + suffix;
     }
 
     function renderCodeButtons() {
@@ -469,9 +497,35 @@
         const btn = document.createElement('button');
         btn.className = 'code-btn' + (isActive ? ' active' : '');
         btn.textContent = root;
-        btn.type = 'button';
 
-        const toggleRootChord = () => {
+        const startPress = (e) => {
+          e.preventDefault();
+          longPressTriggered = false;
+          longPressTimer = setTimeout(() => {
+            longPressTriggered = true;
+            openVariantOverlay(root);
+          }, 450);
+        };
+
+        const endPress = () => {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+        };
+
+        btn.addEventListener('mousedown', startPress);
+        btn.addEventListener('touchstart', startPress, { passive: false });
+        btn.addEventListener('mouseup', endPress);
+        btn.addEventListener('mouseleave', endPress);
+        btn.addEventListener('touchend', endPress);
+        btn.addEventListener('touchcancel', endPress);
+
+        btn.onclick = () => {
+          if (longPressTriggered) {
+            longPressTriggered = false;
+            return;
+          }
           if (selectedChords.has(root)) {
             selectedChords.delete(root);
           } else {
@@ -479,54 +533,6 @@
           }
           renderAll();
         };
-
-        const clearPressState = () => {
-          if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-          }
-          activePointerId = null;
-          activeRoot = null;
-        };
-
-        btn.addEventListener('pointerdown', (e) => {
-          if (e.button !== undefined && e.button !== 0) return;
-          longPressTriggered = false;
-          activePointerId = e.pointerId;
-          activeRoot = root;
-          if (longPressTimer) clearTimeout(longPressTimer);
-          longPressTimer = setTimeout(() => {
-            if (activePointerId !== e.pointerId || activeRoot !== root) return;
-            longPressTriggered = true;
-            openVariantOverlay(root);
-          }, 450);
-        });
-
-        btn.addEventListener('pointerup', (e) => {
-          if (activePointerId !== e.pointerId || activeRoot !== root) return;
-          const wasLongPress = longPressTriggered;
-          clearPressState();
-          if (wasLongPress) {
-            longPressTriggered = false;
-            return;
-          }
-          toggleRootChord();
-        });
-
-        btn.addEventListener('pointercancel', () => {
-          clearPressState();
-          longPressTriggered = false;
-        });
-
-        btn.addEventListener('pointerleave', (e) => {
-          if (activePointerId !== e.pointerId || activeRoot !== root) return;
-          clearPressState();
-          longPressTriggered = false;
-        });
-
-        btn.addEventListener('contextmenu', (e) => {
-          e.preventDefault();
-        });
 
         codeGrid.appendChild(btn);
       });
