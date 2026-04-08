@@ -168,8 +168,9 @@
       border: 1px solid var(--line);
       border-radius: 999px;
       padding: 10px 12px;
-      font-weight: 800;
-      font-size: 14px;
+      font-weight: 900;
+      font-size: 30px;
+      line-height: 1;
     }
     .chip .arrow {
       color: var(--muted);
@@ -288,6 +289,9 @@
         font-size: 24px;
       }
       .capo-display .value {
+        font-size: 26px;
+      }
+      .chip {
         font-size: 26px;
       }
     }
@@ -416,17 +420,28 @@
     let longPressTimer = null;
     let longPressTriggered = false;
 
+    function splitSlashChord(chord) {
+      const [mainPart, bassPart] = chord.split('/');
+      return {
+        mainPart: mainPart || chord,
+        bassPart: bassPart || null
+      };
+    }
+
     function parseChord(chord) {
       const sortedNotes = [...NOTES].sort((a, b) => b.length - a.length);
+      const { mainPart, bassPart } = splitSlashChord(chord);
+
       for (const note of sortedNotes) {
-        if (chord.startsWith(note)) {
+        if (mainPart.startsWith(note)) {
           return {
             root: note,
-            suffix: chord.slice(note.length)
+            suffix: mainPart.slice(note.length),
+            bass: bassPart
           };
         }
       }
-      return { root: chord, suffix: '' };
+      return { root: mainPart, suffix: '', bass: bassPart };
     }
 
     function transposeDown(note, semitones) {
@@ -436,8 +451,10 @@
     }
 
     function convertChord(chord, capoFret) {
-      const { root, suffix } = parseChord(chord);
-      return transposeDown(root, capoFret) + suffix;
+      const { root, suffix, bass } = parseChord(chord);
+      const convertedRoot = transposeDown(root, capoFret);
+      const convertedBass = bass ? transposeDown(bass, capoFret) : null;
+      return convertedBass ? `${convertedRoot}${suffix}/${convertedBass}` : `${convertedRoot}${suffix}`;
     }
 
     function renderCodeButtons() {
