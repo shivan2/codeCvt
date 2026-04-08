@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>카포 코드 변환기</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #eef2f7;
+      --card: rgba(255,255,255,0.9);
+      --line: #d8deea;
+      --text: #202532;
+      --muted: #667085;
+      --accent: #1f2937;
+      --accent-weak: #e7ecf5;
+      --chip: #f6f8fc;
+      --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(180deg, #f6f8fc 0%, #edf2f8 100%);
+      color: var(--text);
+      font-family: Inter, Arial, sans-serif;
+      min-height: 100%;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      padding: 18px;
+    }
+    .app {
+      width: 100%;
+      max-width: 860px;
+      min-height: calc(100vh - 36px);
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .hero {
+      padding: 6px 2px 4px;
+    }
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(26px, 4vw, 34px);
+      line-height: 1.15;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.85);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 800;
+      margin: 0 0 12px;
+    }
+    .section-desc {
+      font-size: 13px;
+      color: var(--muted);
+      margin: -3px 0 14px;
+      line-height: 1.5;
+    }
+    .code-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .code-btn, .capo-btn, .mini-btn {
+      border: none;
+      border-radius: 16px;
+      background: var(--accent-weak);
+      color: var(--text);
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+    }
+    .code-btn {
+      min-height: 58px;
+      padding: 12px 8px;
+      font-size: 18px;
+      box-shadow: inset 0 0 0 1px rgba(31,41,55,0.04);
+    }
+    .code-btn:hover, .capo-btn:hover, .mini-btn:hover {
+      transform: translateY(-1px);
+    }
+    .code-btn.active {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 8px 20px rgba(31,41,55,0.18);
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .toolbar-left {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .mini-btn {
+      min-height: 42px;
+      padding: 10px 14px;
+      font-size: 14px;
+    }
+    .capo-wrap {
+      display: grid;
+      grid-template-columns: 52px 1fr 52px;
+      gap: 12px;
+      align-items: center;
+    }
+    .capo-btn {
+      min-height: 52px;
+      font-size: 28px;
+    }
+    .capo-display {
+      min-height: 74px;
+      border-radius: 20px;
+      background: #f7f9fd;
+      border: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .capo-display .label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .capo-display .value {
+      font-size: 30px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      min-height: 24px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--chip);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .chip .arrow {
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .footer-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    @media (max-width: 640px) {
+      body {
+        padding: 10px;
+      }
+      .app {
+        min-height: calc(100vh - 20px);
+        border-radius: 22px;
+        padding: 14px;
+        gap: 12px;
+      }
+      .card {
+        padding: 14px;
+        border-radius: 18px;
+      }
+      .code-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .code-btn {
+        min-height: 54px;
+        font-size: 17px;
+      }
+      .capo-wrap {
+        grid-template-columns: 46px 1fr 46px;
+        gap: 10px;
+      }
+      .capo-btn {
+        min-height: 48px;
+        font-size: 24px;
+      }
+      .capo-display .value {
+        font-size: 26px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="hero">
+      <h1>카포 코드 변환기</h1>
+      <p>곡에 포함된 코드를 여러 개 선택해두고, 카포 프렛만 바꾸면 실제로 잡아야 할 코드가 바로 갱신됩니다.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">코드 선택</h2>
+      <p class="section-desc">루트음/코드타입을 따로 조합하지 않고, 자주 쓰는 코드를 여러 개 동시에 켜고 끌 수 있습니다.</p>
+      <div class="code-grid" id="codeGrid"></div>
+      <div class="toolbar" style="margin-top: 14px;">
+        <div class="toolbar-left">
+          <button class="mini-btn" id="clearSelectionBtn">선택 초기화</button>
+        </div>
+        <div class="footer-note">선택/해제만 하면 아래 결과가 자동 반영됩니다.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">카포 프렛</h2>
+      <p class="section-desc">버튼으로 프렛을 조절하면 결과가 즉시 다시 계산됩니다.</p>
+      <div class="capo-wrap">
+        <button class="capo-btn" id="minusBtn">−</button>
+        <div class="capo-display">
+          <div class="label">현재 카포</div>
+          <div class="value"><span id="capoValue">0</span>F</div>
+        </div>
+        <button class="capo-btn" id="plusBtn">+</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">선택한 원곡 코드</h2>
+      <div class="chips" id="selectedChips"></div>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">카포 적용 코드</h2>
+      <div class="chips" id="convertedChips"></div>
+    </section>
+
+    <section class="card">
+      <div class="footer-note">
+        현재 버전은 샵 표기 기준입니다. 다음 단계에서 Bb, Eb 같은 플랫 표기와 고급 코드 조합 모드를 별도로 확장 예정입니다.
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const SIMPLE_CHORDS = [
+      'C', 'C#', 'D', 'D#',
+      'E', 'F', 'F#', 'G',
+      'G#', 'A', 'A#', 'B',
+      'Cm', 'C#m', 'Dm', 'D#m',
+      'Em', 'Fm', 'F#m', 'Gm',
+      'G#m', 'Am', 'A#m', 'Bm'
+    ];
+
+    let selectedChords = new Set();
+    let capo = 0;
+
+    const codeGrid = document.getElementById('codeGrid');
+    const selectedChips = document.getElementById('selectedChips');
+    const convertedChips = document.getElementById('convertedChips');
+    const capoValue = document.getElementById('capoValue');
+    const minusBtn = document.getElementById('minusBtn');
+    const plusBtn = document.getElementById('plusBtn');
+    const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+
+    function parseChord(chord) {
+      const sortedNotes = [...NOTES].sort((a, b) => b.length - a.length);
+      for (const note of sortedNotes) {
+        if (chord.startsWith(note)) {
+          return {
+            root: note,
+            suffix: chord.slice(note.length)
+          };
+        }
+      }
+      return { root: chord, suffix: '' };
+    }
+
+    function transposeDown(note, semitones) {
+      const index = NOTES.indexOf(note);
+      if (index < 0) return note;
+      return NOTES[(index - semitones + 120) % 12];
+    }
+
+    function convertChord(chord, capoFret) {
+      const { root, suffix } = parseChord(chord);
+      return transposeDown(root, capoFret) + suffix;
+    }
+
+    function renderCodeButtons() {
+      codeGrid.innerHTML = '';
+      SIMPLE_CHORDS.forEach(chord => {
+        const btn = document.createElement('button');
+        btn.className = 'code-btn' + (selectedChords.has(chord) ? ' active' : '');
+        btn.textContent = chord;
+        btn.onclick = () => {
+          if (selectedChords.has(chord)) {
+            selectedChords.delete(chord);
+          } else {
+            selectedChords.add(chord);
+          }
+          renderAll();
+        };
+        codeGrid.appendChild(btn);
+      });
+    }
+
+    function renderSelectedChips() {
+      const items = Array.from(selectedChords);
+      if (items.length === 0) {
+        selectedChips.innerHTML = '<div class="empty">선택된 코드가 없습니다.</div>';
+        return;
+      }
+      selectedChips.innerHTML = items
+        .map(chord => `<div class="chip">${chord}</div>`)
+        .join('');
+    }
+
+    function renderConvertedChips() {
+      const items = Array.from(selectedChords);
+      if (items.length === 0) {
+        convertedChips.innerHTML = '<div class="empty">코드를 선택하면 여기에 카포 적용 결과가 표시됩니다.</div>';
+        return;
+      }
+      convertedChips.innerHTML = items
+        .map(chord => {
+          const converted = convertChord(chord, capo);
+          return `<div class="chip"><span>${converted}</span></div>`;
+        })
+        .join('');
+    }
+
+    function renderCapo() {
+      capoValue.textContent = capo;
+    }
+
+    function renderAll() {
+      renderCodeButtons();
+      renderSelectedChips();
+      renderConvertedChips();
+      renderCapo();
+    }
+
+    minusBtn.onclick = () => {
+      capo = Math.max(0, capo - 1);
+      renderAll();
+    };
+
+    plusBtn.onclick = () => {
+      capo = Math.min(11, capo + 1);
+      renderAll();
+    };
+
+    clearSelectionBtn.onclick = () => {
+      selectedChords.clear();
+      renderAll();
+    };
+
+    renderAll();
+  </script>
+</body>
+</html>
