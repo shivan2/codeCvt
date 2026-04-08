@@ -227,6 +227,11 @@
       border: none;
       border-radius: 14px;
       min-height: 50px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
       background: var(--accent-weak);
       font-size: 16px;
       font-weight: 800;
@@ -234,6 +239,23 @@
     }
     .variant-btn:hover {
       transform: translateY(-1px);
+    }
+    .variant-btn.selected {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 8px 20px rgba(31,41,55,0.18);
+    }
+    .sheet-preview {
+      min-height: 54px;
+      border-radius: 16px;
+      background: #f7f9fd;
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      font-size: 22px;
+      font-weight: 900;
     }
     @media (max-width: 640px) {
       body {
@@ -326,7 +348,30 @@
         <h3 class="sheet-title" id="sheetTitle">코드 타입 선택</h3>
         <button class="mini-btn" id="closeOverlayBtn">닫기</button>
       </div>
+      <div class="sheet-preview" id="sheetPreview">C</div>
       <div class="variant-grid" id="variantGrid"></div>
+      <div class="variant-grid" style="margin-top: 10px;">
+        <button class="variant-btn" id="openBassBtn">슬래시 코드 만들기</button>
+      </div>
+      <div class="footer-note" style="margin-top: 12px;">코드 타입을 선택하면 즉시 추가됩니다.</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="bassOverlay">
+    <div class="sheet">
+      <div class="sheet-head">
+        <h3 class="sheet-title" id="bassSheetTitle">베이스 음 선택</h3>
+        <button class="mini-btn" id="closeBassOverlayBtn">닫기</button>
+      </div>
+      <div class="sheet-preview" id="bassPreview">C/E</div>
+      <div class="variant-grid" id="bassGrid"></div>
+      <div class="toolbar" style="margin-top: 14px;">
+        <div class="toolbar-left">
+          <button class="mini-btn" id="cancelBassBtn">취소</button>
+          <button class="mini-btn" id="addBassBtn">추가</button>
+        </div>
+        <div class="footer-note">베이스 음을 고르면 미리보기가 갱신됩니다.</div>
+      </div>
     </div>
   </div>
 
@@ -353,9 +398,21 @@
     const variantOverlay = document.getElementById('variantOverlay');
     const variantGrid = document.getElementById('variantGrid');
     const sheetTitle = document.getElementById('sheetTitle');
+    const sheetPreview = document.getElementById('sheetPreview');
     const closeOverlayBtn = document.getElementById('closeOverlayBtn');
+    const openBassBtn = document.getElementById('openBassBtn');
+
+    const bassOverlay = document.getElementById('bassOverlay');
+    const bassGrid = document.getElementById('bassGrid');
+    const bassSheetTitle = document.getElementById('bassSheetTitle');
+    const bassPreview = document.getElementById('bassPreview');
+    const closeBassOverlayBtn = document.getElementById('closeBassOverlayBtn');
+    const cancelBassBtn = document.getElementById('cancelBassBtn');
+    const addBassBtn = document.getElementById('addBassBtn');
 
     let overlayRoot = null;
+    let overlaySelectedSuffix = '';
+    let bassSelectedNote = null;
     let longPressTimer = null;
     let longPressTriggered = false;
 
@@ -469,27 +526,70 @@
 
     function openVariantOverlay(root) {
       overlayRoot = root;
+      overlaySelectedSuffix = '';
+      bassSelectedNote = null;
       sheetTitle.textContent = `${root} 코드 타입 선택`;
+      sheetPreview.textContent = `${root}`;
+      renderVariantButtons();
+      variantOverlay.classList.add('show');
+    }
+
+    function renderVariantButtons() {
       variantGrid.innerHTML = CHORD_VARIANTS.map(suffix => {
-        const label = suffix === '' ? `${root}` : `${root}${suffix}`;
-        return `<button class="variant-btn" data-chord="${label}">${label}</button>`;
+        const label = suffix === '' ? `${overlayRoot}` : `${overlayRoot}${suffix}`;
+        const selected = suffix === overlaySelectedSuffix ? ' selected' : '';
+        return `<button class="variant-btn${selected}" data-suffix="${suffix}">${label}</button>`;
       }).join('');
 
       variantGrid.querySelectorAll('.variant-btn').forEach(btn => {
         btn.onclick = () => {
-          const chord = btn.dataset.chord;
+          const suffix = btn.dataset.suffix;
+          overlaySelectedSuffix = suffix;
+          const chord = `${overlayRoot}${suffix}`;
+          sheetPreview.textContent = chord;
           selectedChords.add(chord);
           closeVariantOverlay();
           renderAll();
         };
       });
+    }
 
-      variantOverlay.classList.add('show');
+    function openBassOverlay() {
+      overlaySelectedSuffix = overlaySelectedSuffix ?? '';
+      bassSelectedNote = overlayRoot;
+      bassSheetTitle.textContent = `${overlayRoot}${overlaySelectedSuffix} 베이스 음 선택`;
+      renderBassGrid();
+      updateBassPreview();
+      bassOverlay.classList.add('show');
+    }
+
+    function renderBassGrid() {
+      bassGrid.innerHTML = NOTES.map(note => {
+        const selected = note === bassSelectedNote ? ' selected' : '';
+        return `<button class="variant-btn${selected}" data-note="${note}">${note}</button>`;
+      }).join('');
+
+      bassGrid.querySelectorAll('.variant-btn').forEach(btn => {
+        btn.onclick = () => {
+          bassSelectedNote = btn.dataset.note;
+          renderBassGrid();
+          updateBassPreview();
+        };
+      });
+    }
+
+    function updateBassPreview() {
+      const baseChord = `${overlayRoot}${overlaySelectedSuffix || ''}`;
+      bassPreview.textContent = `${baseChord}/${bassSelectedNote || overlayRoot}`;
     }
 
     function closeVariantOverlay() {
       variantOverlay.classList.remove('show');
-      overlayRoot = null;
+    }
+
+    function closeBassOverlay() {
+      bassOverlay.classList.remove('show');
+      bassSelectedNote = null;
     }
 
     minusBtn.onclick = () => {
@@ -511,9 +611,35 @@
       closeVariantOverlay();
     };
 
+    openBassBtn.onclick = () => {
+      closeVariantOverlay();
+      openBassOverlay();
+    };
+
+    closeBassOverlayBtn.onclick = () => {
+      closeBassOverlay();
+    };
+
+    cancelBassBtn.onclick = () => {
+      closeBassOverlay();
+    };
+
+    addBassBtn.onclick = () => {
+      const chord = `${overlayRoot}${overlaySelectedSuffix || ''}/${bassSelectedNote || overlayRoot}`;
+      selectedChords.add(chord);
+      closeBassOverlay();
+      renderAll();
+    };
+
     variantOverlay.onclick = (e) => {
       if (e.target === variantOverlay) {
         closeVariantOverlay();
+      }
+    };
+
+    bassOverlay.onclick = (e) => {
+      if (e.target === bassOverlay) {
+        closeBassOverlay();
       }
     };
 
