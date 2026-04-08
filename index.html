@@ -185,6 +185,56 @@
       font-size: 13px;
       line-height: 1.6;
     }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.32);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 18px;
+      z-index: 50;
+    }
+    .overlay.show {
+      display: flex;
+    }
+    .sheet {
+      width: 100%;
+      max-width: 860px;
+      background: rgba(255,255,255,0.98);
+      border-radius: 24px 24px 18px 18px;
+      padding: 18px;
+      box-shadow: 0 20px 50px rgba(15,23,42,0.2);
+    }
+    .sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .sheet-title {
+      font-size: 18px;
+      font-weight: 900;
+      margin: 0;
+    }
+    .variant-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .variant-btn {
+      border: none;
+      border-radius: 14px;
+      min-height: 50px;
+      background: var(--accent-weak);
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .variant-btn:hover {
+      transform: translateY(-1px);
+    }
     @media (max-width: 640px) {
       body {
         padding: 10px;
@@ -230,7 +280,7 @@
 
     <section class="card">
       <h2 class="section-title">코드 선택</h2>
-      <p class="section-desc">루트음/코드타입을 따로 조합하지 않고, 자주 쓰는 코드를 여러 개 동시에 켜고 끌 수 있습니다.</p>
+      <p class="section-desc">루트음/코드타입을 따로 조합하지 않고, 자주 쓰는 코드를 여러 개 동시에 켜고 끌 수 있습니다.<br> <b>- 코드를 짧게 클릭시 -> 코드 선택</b> <br><b>- 코드를 길게 클릭시 -> 코드 타입 선택(m, 7, sus4 등..)</b></p>
       <div class="code-grid" id="codeGrid"></div>
       <div class="toolbar" style="margin-top: 14px;">
         <div class="toolbar-left">
@@ -270,16 +320,25 @@
     </section>
   </div>
 
+  <div class="overlay" id="variantOverlay">
+    <div class="sheet">
+      <div class="sheet-head">
+        <h3 class="sheet-title" id="sheetTitle">코드 타입 선택</h3>
+        <button class="mini-btn" id="closeOverlayBtn">닫기</button>
+      </div>
+      <div class="variant-grid" id="variantGrid"></div>
+    </div>
+  </div>
+
   <script>
     const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const SIMPLE_CHORDS = [
       'C', 'C#', 'D', 'D#',
       'E', 'F', 'F#', 'G',
-      'G#', 'A', 'A#', 'B',
-      'Cm', 'C#m', 'Dm', 'D#m',
-      'Em', 'Fm', 'F#m', 'Gm',
-      'G#m', 'Am', 'A#m', 'Bm'
+      'G#', 'A', 'A#', 'B'
     ];
+
+    const CHORD_VARIANTS = ['', 'm', '7', 'maj7', 'm7', 'sus4', 'dim', 'aug'];
 
     let selectedChords = new Set();
     let capo = 0;
@@ -291,6 +350,14 @@
     const minusBtn = document.getElementById('minusBtn');
     const plusBtn = document.getElementById('plusBtn');
     const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+    const variantOverlay = document.getElementById('variantOverlay');
+    const variantGrid = document.getElementById('variantGrid');
+    const sheetTitle = document.getElementById('sheetTitle');
+    const closeOverlayBtn = document.getElementById('closeOverlayBtn');
+
+    let overlayRoot = null;
+    let longPressTimer = null;
+    let longPressTriggered = false;
 
     function parseChord(chord) {
       const sortedNotes = [...NOTES].sort((a, b) => b.length - a.length);
@@ -318,18 +385,48 @@
 
     function renderCodeButtons() {
       codeGrid.innerHTML = '';
-      SIMPLE_CHORDS.forEach(chord => {
+      SIMPLE_CHORDS.forEach(root => {
+        const isActive = Array.from(selectedChords).some(ch => parseChord(ch).root === root && parseChord(ch).suffix === '');
         const btn = document.createElement('button');
-        btn.className = 'code-btn' + (selectedChords.has(chord) ? ' active' : '');
-        btn.textContent = chord;
+        btn.className = 'code-btn' + (isActive ? ' active' : '');
+        btn.textContent = root;
+
+        const startPress = (e) => {
+          e.preventDefault();
+          longPressTriggered = false;
+          longPressTimer = setTimeout(() => {
+            longPressTriggered = true;
+            openVariantOverlay(root);
+          }, 450);
+        };
+
+        const endPress = () => {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+        };
+
+        btn.addEventListener('mousedown', startPress);
+        btn.addEventListener('touchstart', startPress, { passive: false });
+        btn.addEventListener('mouseup', endPress);
+        btn.addEventListener('mouseleave', endPress);
+        btn.addEventListener('touchend', endPress);
+        btn.addEventListener('touchcancel', endPress);
+
         btn.onclick = () => {
-          if (selectedChords.has(chord)) {
-            selectedChords.delete(chord);
+          if (longPressTriggered) {
+            longPressTriggered = false;
+            return;
+          }
+          if (selectedChords.has(root)) {
+            selectedChords.delete(root);
           } else {
-            selectedChords.add(chord);
+            selectedChords.add(root);
           }
           renderAll();
         };
+
         codeGrid.appendChild(btn);
       });
     }
@@ -370,6 +467,31 @@
       renderCapo();
     }
 
+    function openVariantOverlay(root) {
+      overlayRoot = root;
+      sheetTitle.textContent = `${root} 코드 타입 선택`;
+      variantGrid.innerHTML = CHORD_VARIANTS.map(suffix => {
+        const label = suffix === '' ? `${root}` : `${root}${suffix}`;
+        return `<button class="variant-btn" data-chord="${label}">${label}</button>`;
+      }).join('');
+
+      variantGrid.querySelectorAll('.variant-btn').forEach(btn => {
+        btn.onclick = () => {
+          const chord = btn.dataset.chord;
+          selectedChords.add(chord);
+          closeVariantOverlay();
+          renderAll();
+        };
+      });
+
+      variantOverlay.classList.add('show');
+    }
+
+    function closeVariantOverlay() {
+      variantOverlay.classList.remove('show');
+      overlayRoot = null;
+    }
+
     minusBtn.onclick = () => {
       capo = Math.max(0, capo - 1);
       renderAll();
@@ -383,6 +505,16 @@
     clearSelectionBtn.onclick = () => {
       selectedChords.clear();
       renderAll();
+    };
+
+    closeOverlayBtn.onclick = () => {
+      closeVariantOverlay();
+    };
+
+    variantOverlay.onclick = (e) => {
+      if (e.target === variantOverlay) {
+        closeVariantOverlay();
+      }
     };
 
     renderAll();
